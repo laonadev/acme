@@ -189,6 +189,10 @@ func (p *Renew) doPreAuthz(ctx context.Context, aid string) (*Challenge, error) 
 }
 
 func (p *Renew) doAuthz(ctx context.Context, aid string, cha *Challenge) error {
+	if cha == nil {
+		// valid
+		return nil
+	}
 
 	/* */
 
