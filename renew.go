@@ -92,10 +92,11 @@ func (p *Renew) GetCertificate(ctx context.Context) ([]byte, error) {
 /* */
 
 func (p *Renew) doRenew(ctx context.Context, domains []string) error {
-	// Check account
-	if _, err := p.cli.LookupAccount(ctx); err != nil {
-		return err
-	}
+	// ignore account check to speed up the process
+	// // Check account
+	// if _, err := p.cli.LookupAccount(ctx); err != nil {
+	// 	return err
+	// }
 
 	// New order
 	var ids []Identifier
