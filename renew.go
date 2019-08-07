@@ -34,6 +34,8 @@ type Renew struct {
 	Wait     int
 	DNSExtra int
 
+	SkipDNSCheck bool
+
 	request *x509.CertificateRequest
 
 	Certificate string
@@ -242,6 +244,10 @@ func (p *Renew) doChallenge(ctx context.Context, authz *Authorization, cha *Chal
 	}
 
 	/* */
+
+	if p.SkipDNSCheck {
+		return nil
+	}
 
 	ms := 0
 	for i := 0; i < p.DNSProbe+p.DNSRetry; i++ {
