@@ -122,9 +122,19 @@ func (p *Renew) doRenew(ctx context.Context, domains []string) error {
 		return errors.New("order.authorizations")
 	}
 
+	// Pre Authorize
+	chas := make([]*Challenge, len(order.Authorizations))
+	for i, aid := range order.Authorizations {
+		if cha, err := p.doPreAuthz(ctx, aid); err != nil {
+			return err
+		} else {
+			chas[i] = cha
+		}
+	}
+
 	// Authorize
-	for _, aid := range order.Authorizations {
-		if err := p.doAuthz(ctx, aid); err != nil {
+	for i, aid := range order.Authorizations {
+		if err := p.doAuthz(ctx, aid, chas[i]); err != nil {
 			return err
 		}
 	}
@@ -137,20 +147,20 @@ func (p *Renew) doRenew(ctx context.Context, domains []string) error {
 	return nil
 }
 
-func (p *Renew) doAuthz(ctx context.Context, aid string) error {
+func (p *Renew) doPreAuthz(ctx context.Context, aid string) (*Challenge, error) {
 	authz, err := p.cli.GetAuthorization(ctx, aid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if authz.Status == "valid" { // OK
-		return nil
+		return nil, nil
 	}
 
 	/* */
 
 	if len(authz.Challenges) == 0 {
-		return errors.New("authz.challenges")
+		return nil, errors.New("authz.challenges")
 	}
 
 	var cha *Challenge
@@ -162,18 +172,23 @@ func (p *Renew) doAuthz(ctx context.Context, aid string) error {
 	}
 
 	if cha == nil {
-		return errors.New("challenges.dns-01")
+		return nil, errors.New("challenges.dns-01")
 	}
 
 	if cha.Status == "valid" { // OK
-		return nil
+		return nil, nil
 	}
 
 	/* */
 
 	if err := p.doChallenge(ctx, authz, cha); err != nil {
-		return err
+		return nil, err
 	}
+
+	return cha, nil
+}
+
+func (p *Renew) doAuthz(ctx context.Context, aid string, cha *Challenge) error {
 
 	/* */
 
