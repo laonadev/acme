@@ -122,20 +122,15 @@ func (p *Renew) doRenew(ctx context.Context, domains []string) error {
 		return errors.New("order.authorizations")
 	}
 
-	// Pre Authorize
-	chas := make([]*Challenge, len(order.Authorizations))
-	for i, aid := range order.Authorizations {
+	for _, aid := range order.Authorizations {
+		// Pre Authorize
 		if cha, err := p.doPreAuthz(ctx, aid); err != nil {
 			return err
 		} else {
-			chas[i] = cha
-		}
-	}
-
-	// Authorize
-	for i, aid := range order.Authorizations {
-		if err := p.doAuthz(ctx, aid, chas[i]); err != nil {
-			return err
+			// Authorize
+			if err := p.doAuthz(ctx, aid, cha); err != nil {
+				return err
+			}
 		}
 	}
 
