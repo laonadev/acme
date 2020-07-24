@@ -114,22 +114,24 @@ func (p *Renew) doRenew(ctx context.Context, domains []string) error {
 		return err
 	}
 
-	if order.Status != "pending" {
-		return errors.New("order.status")
-	}
+	if order.Status != "ready" {
+		if order.Status != "pending" {
+			return errors.New("order.status")
+		}
 
-	if len(order.Authorizations) == 0 {
-		return errors.New("order.authorizations")
-	}
+		if len(order.Authorizations) == 0 {
+			return errors.New("order.authorizations")
+		}
 
-	for _, aid := range order.Authorizations {
-		// Pre Authorize
-		if cha, err := p.doPreAuthz(ctx, aid); err != nil {
-			return err
-		} else {
-			// Authorize
-			if err := p.doAuthz(ctx, aid, cha); err != nil {
+		for _, aid := range order.Authorizations {
+			// Pre Authorize
+			if cha, err := p.doPreAuthz(ctx, aid); err != nil {
 				return err
+			} else {
+				// Authorize
+				if err := p.doAuthz(ctx, aid, cha); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -184,49 +186,36 @@ func (p *Renew) doPreAuthz(ctx context.Context, aid string) (*Challenge, error) 
 }
 
 func (p *Renew) doAuthz(ctx context.Context, aid string, cha *Challenge) error {
-	if cha == nil {
+	if cha == nil || cha.Status == "valid" {
 		// valid
 		return nil
 	}
 
 	/* */
 
-	Sleep(ctx, p.Wait) // extra wait for DNS propagation
+	// Sleep(ctx, p.Wait) // extra wait for DNS propagation
 
 	/* */
 
-	if cha.Status == "pending" {
-		ka, err := p.cli.GetKeyAuthorization(cha.Token)
-		if err != nil {
-			return err
-		}
-
-		req := map[string]interface{}{
-			"keyAuthorization": ka,
-		}
-
-		if _, err = p.cli.PostChallenge(ctx, cha.URL, req); err != nil {
-			return err
-		}
+	ka, err := p.cli.GetKeyAuthorization(cha.Token)
+	if err != nil {
+		return err
 	}
-
-	/* */
-
+	req := map[string]interface{}{
+		"keyAuthorization": ka,
+	}
 	ms := 0
 	for i := 0; i < p.ChaRetry; i++ {
+		if cha, err = p.cli.PostChallenge(ctx, cha.URL, req); err != nil {
+			return err
+		}
+		if cha.Status == "valid" {
+			return nil
+		}
 		if i%p.ChaLevel == 0 {
 			ms += p.Wait
 		}
 		Sleep(ctx, ms)
-
-		authz, err := p.cli.GetAuthorization(ctx, aid)
-		if err != nil {
-			return err
-		}
-
-		if authz.Status == "valid" {
-			return nil
-		}
 	}
 
 	/* */
